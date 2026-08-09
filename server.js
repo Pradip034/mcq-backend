@@ -229,35 +229,57 @@ const questions = [
   }
 ];
 
+// Returns correctOption along with the questions so client can calculate live score
 app.get('/api/questions', (req, res) => {
-  const sanitizedQuestions = questions.map(({ id, question, options }) => ({
+  const sanitizedQuestions = questions.map(({ id, question, options, answerIndex }) => ({
     id,
     question,
-    options
+    options,
+    correctOption: answerIndex
   }));
   res.json(sanitizedQuestions);
 });
 
+// Calculate final result with NEET marking (+4 for correct, -1 for wrong)
 app.post('/api/submit', (req, res) => {
   const userAnswers = req.body.answers || [];
 
   let score = 0;
-  const results = userAnswers.map(ans => {
-    const question = questions.find(q => q.id === ans.id);
-    const isCorrect = question && question.answerIndex === ans.selectedOption;
-    if (isCorrect) score++;
+  let correctCount = 0;
+  let incorrectCount = 0;
+
+  const results = questions.map((question) => {
+    const userAns = userAnswers.find((a) => a.id === question.id);
+    const selectedOption = userAns ? userAns.selectedOption : null;
+    
+    let status = 'unattempted';
+    if (selectedOption !== null && selectedOption !== undefined) {
+      if (selectedOption === question.answerIndex) {
+        status = 'correct';
+        score += 4;
+        correctCount++;
+      } else {
+        status = 'incorrect';
+        score -= 1;
+        incorrectCount++;
+      }
+    }
 
     return {
-      id: ans.id,
-      selectedOption: ans.selectedOption,
-      correct: isCorrect,
-      correctAnswerIndex: question ? question.answerIndex : null
+      id: question.id,
+      selectedOption,
+      correctAnswerIndex: question.answerIndex,
+      status
     };
   });
 
   res.json({
     score,
+    maxScore: questions.length * 4,
     total: questions.length,
+    correctCount,
+    incorrectCount,
+    unattemptedCount: questions.length - (correctCount + incorrectCount),
     results
   });
 });
